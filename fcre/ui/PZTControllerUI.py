@@ -108,7 +108,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def initInfo(self):
         info = None
         try:
-            info = self.devpool.dosafely(self.type, self.name, 'getInit')
+            info = self.devpool.doSafely(self.type, self.name, 'getInit')
         except Exception as e:
             self._errorSignal.emit(str(e))
         if not info:
@@ -119,7 +119,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def updateInfo(self):
         info = None
         try:
-            info = self.devpool.dosafely(self.type, self.name, 'getInfo')
+            info = self.devpool.doSafely(self.type, self.name, 'getInfo')
         except Exception as e:
             self._errorSignal.emit(str(e))
         if not info:
@@ -202,7 +202,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def _singleMoveFun(self, n):
         try:
             self._lastMove[n] = self._cache[n]
-            self.devpool.dosafely(self.type, self.name, 'move', tuple(self._lastMove))
+            self.devpool.doSafely(self.type, self.name, 'move', tuple(self._lastMove))
         except OutOfRange:
             self._outRangeSignal.emit()
         except SystemError:
@@ -220,7 +220,7 @@ class PZTControllerUI(QtWidgets.QWidget):
         try:
             for i in range(self._info['numaxes']):
                 self._lastMove[i] = self._cache[i]
-            self.devpool.dosafely(self.type, self.name, 'move', tuple(self._lastMove))
+            self.devpool.doSafely(self.type, self.name, 'move', tuple(self._lastMove))
         except OutOfRange:
             self._outRangeSignal.emit()
         except SystemError:
@@ -270,7 +270,7 @@ class PZTControllerUI(QtWidgets.QWidget):
 
     def _resetFun(self):
         try:
-            self.devpool.dosafely(self.type, self.name, 'reset')
+            self.devpool.doSafely(self.type, self.name, 'reset')
         except OutOfRange:
             self._outRangeSignal.emit()
         except SystemError:

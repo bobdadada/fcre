@@ -100,11 +100,11 @@ class ShutterUI(QtWidgets.QWidget):
     def customSet(self):
         try:
             mode = int(self.modeComboBox.value())
-            self.devpool.dosafely(self.type, self.name, 'setMode', mode)
+            self.devpool.doSafely(self.type, self.name, 'setMode', mode)
             opentime = float(self.opentimeSpinbox.value())
-            self.devpool.dosafely(self.type, self.name, 'setOpenDuration', opentime)
+            self.devpool.doSafely(self.type, self.name, 'setOpenDuration', opentime)
             shuttime = float(self.shuttimeSpinbox.value())
-            self.devpool.dosafely(self.type, self.name, 'setShutDuration', shuttime)
+            self.devpool.doSafely(self.type, self.name, 'setShutDuration', shuttime)
         except Exception as e:
             if self._updateThread:
                 self._updateThread.working = False
@@ -117,9 +117,9 @@ class ShutterUI(QtWidgets.QWidget):
     def customEnable(self, x):
         try:
             if x:
-                self.devpool.dosafely(self.type, self.name, 'enable')
+                self.devpool.doSafely(self.type, self.name, 'enable')
             else:
-                self.devpool.dosafely(self.type, self.name, 'disable')
+                self.devpool.doSafely(self.type, self.name, 'disable')
         except Exception as e:
             self.devpool.do(self.type, self.name, 'close')
             self.initButton.setEnabled(True)
@@ -139,10 +139,10 @@ class ShutterUI(QtWidgets.QWidget):
             self.initButton.setEnabled(True)
             return
         try:
-            self.modeComboBox.setItems(validateRets(self.devpool.dosafely(self.type, self.name, 'getModeNameTable'), 
+            self.modeComboBox.setItems(validateRets(self.devpool.doSafely(self.type, self.name, 'getModeNameTable'), 
                 '无法获取光快门模式表', dict))
-            self.opentimeSpinbox.setValue(self.devpool.dosafely(self.type, self.name, 'getOpenDuration'))
-            self.shuttimeSpinbox.setValue(self.devpool.dosafely(self.type, self.name, 'getShutDuration'))
+            self.opentimeSpinbox.setValue(self.devpool.doSafely(self.type, self.name, 'getOpenDuration'))
+            self.shuttimeSpinbox.setValue(self.devpool.doSafely(self.type, self.name, 'getShutDuration'))
         except:
             self.initButton.setEnabled(True)
             return

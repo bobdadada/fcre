@@ -106,10 +106,7 @@ class ShutterUI(QtWidgets.QWidget):
             shuttime = float(self.shuttimeSpinbox.value())
             self.devpool.doSafely(self.type, self.name, 'setShutDuration', shuttime)
         except Exception as e:
-            if self._updateThread:
-                self._updateThread.working = False
-                self._updateThread.wait()
-                self._updateThread = None
+            self._updateThread = None
             self.devpool.do(self.type, self.name, 'close')
             self.initButton.setEnabled(True)
             showMessage('error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
@@ -166,8 +163,7 @@ class ShutterUI(QtWidgets.QWidget):
     
     def closeEvent(self, ev):
         if self._updateThread and self._updateThread.isRunning:
-            self._updateThread.working = False
-            self._updateThread.wait()
+            self._updateThread.delSafely()
         ev.accept()
 
 if __name__ == '__main__':

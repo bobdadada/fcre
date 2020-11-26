@@ -78,7 +78,7 @@ class PZTControllerUI(QtWidgets.QWidget):
         self._errorSignal.connect(self._errorFun)
         self._updateErrorSignal.connect(self._updateErrorFun)
 
-        # _updateErrorSignal信号发射计数，可在customInit中重新归0
+        # _updateErrorSignal信号发射计数，可在customInit中重新归0，从0开始发射此计数
         self._updateErrorSignalEmittedTimes = 0
     
     def _moveDoneFun(self):

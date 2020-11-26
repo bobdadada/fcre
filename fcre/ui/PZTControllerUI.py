@@ -40,6 +40,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     _systemErrorSignal = QtCore.Signal()
     _outRangeSignal = QtCore.Signal()
     _errorSignal = QtCore.Signal(str)
+    _updateErrorSignal = QtCore.Signal(str, int)
 
     def __init__(self, name='pztcontroller', devpool=None, type='pztcontroller', numaxes=3, parent=None, **kwargs):
         super(PZTControllerUI, self).__init__(parent)
@@ -60,11 +61,9 @@ class PZTControllerUI(QtWidgets.QWidget):
         self._lastMove = self._info['numaxes'] * [0]
 
         # 配置线程对象
-        self._updateThread = None  # 线程对象，在UI执行customInit时完成初始化
-        # self._doThread = SingleDo(self._doFun)  # 线程对象，对应customDo
+        self._updateThread = NonstopDo(self._updateFun, intervalms=100)  # 更新间隔100ms,即10Hz
         self._moveThread = SingleDo(self._moveFun)  # 线程对象，对应customMove
-        # 线程对象，对应customReset
-        self._resetThread = SingleDo(self._resetFun)
+        self._resetThread = SingleDo(self._resetFun)  # 线程对象，对应customReset
         self._singleMoveThreads = []  # 线程对象列表，对应于单个轴customSingleMove
         for i in range(self._info['numaxes']):
             self._singleMoveThreads.append(SingleDo(self._singleMoveFun, n=i))
@@ -77,6 +76,10 @@ class PZTControllerUI(QtWidgets.QWidget):
         self._systemErrorSignal.connect(self._systemErrorFun)
         self._outRangeSignal.connect(self._outRangeFun)
         self._errorSignal.connect(self._errorFun)
+        self._updateErrorSignal.connect(self._updateErrorFun)
+
+        # _updateErrorSignal信号发射计数，可在customInit中重新归0
+        self._updateErrorSignalEmittedTimes = 0
     
     def _moveDoneFun(self):
         self.updateInfo()
@@ -86,10 +89,8 @@ class PZTControllerUI(QtWidgets.QWidget):
 
     def _systemErrorFun(self):
         self.devpool.do(self.type, self.name, 'close')
-        if self._updateThread:
-            self._updateThread.working = False
-            self._updateThread.wait()
-            self._updateThread = None
+        if self._updateThread.isRunning():
+            self._updateThread.stopSafely()
         showMessage('error', "{}系统异常,请排除错误重新连接.".format(self.name), QtWidgets.QMessageBox.Warning, parent=self)
         self.initButton.setEnabled(True)
 
@@ -98,12 +99,15 @@ class PZTControllerUI(QtWidgets.QWidget):
 
     def _errorFun(self, info):
         self.devpool.do(self.type, self.name, 'close')
-        if self._updateThread:
-            self._updateThread.working = False
-            self._updateThread.wait()
-            self._updateThread = None
+        if self._updateThread.isRunning():
+            self._updateThread.stopSafely()
         showMessage('error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
         self.initButton.setEnabled(True)
+    
+    def _updateErrorFun(self, info, t):
+        # 由于_updateThread会发射很多此此信号，我们需要合并信号
+        if t == 0:
+            self._errorSignal.emit(info)
 
     def initInfo(self):
         info = None
@@ -121,7 +125,8 @@ class PZTControllerUI(QtWidgets.QWidget):
         try:
             info = self.devpool.doSafely(self.type, self.name, 'getInfo')
         except Exception as e:
-            self._errorSignal.emit(str(e))
+            self._updateErrorSignal.emit(str(e), self._updateErrorSignalEmittedTimes)
+            self._updateErrorSignalEmittedTimes += 1
         if not info:
             return
         else:
@@ -242,11 +247,8 @@ class PZTControllerUI(QtWidgets.QWidget):
             self.initButton.setEnabled(True)
             return
         self.setButtonEnabled(True)
-        if not self._updateThread:
-            self._updateThread = NonstopDo(self._updateFun)
-            self._updateThread.start(QtCore.QThread.LowPriority)
-        else:
-            pass
+        self._updateErrorSignalEmittedTimes = 0
+        self._updateThread.restart(QtCore.QThread.LowPriority)
         self.initInfo()
         for i in range(self._info['numaxes']):
             self.axis[i].setValue(float(self._info['startPosition'][i]))
@@ -282,15 +284,14 @@ class PZTControllerUI(QtWidgets.QWidget):
 
     def closeEvent(self, ev):
         if self._updateThread and self._updateThread.isRunning():
-            self._updateThread.working = False
-            self._updateThread.wait()
+            self._updateThread.delSafely()
         if self._moveThread and self._moveThread.isRunning():
             self._moveThread.wait()
         if self._resetThread and self._resetThread.isRunning():
             self._resetThread.wait()
-        for single in self._singleMoveThreads:
-            if single and single.isRunning():
-                single.wait()
+        for single_move in self._singleMoveThreads:
+            if single_move and single_move.isRunning():
+                single_move.wait()
         ev.accept()
 
 

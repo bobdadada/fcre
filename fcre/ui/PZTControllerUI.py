@@ -104,9 +104,9 @@ class PZTControllerUI(QtWidgets.QWidget):
         showMessage('error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
         self.initButton.setEnabled(True)
     
-    def _updateErrorFun(self, info, t):
+    def _updateErrorFun(self, info, index):
         # 由于_updateThread会发射很多此此信号，我们需要合并信号
-        if t == 0:
+        if index == 0:
             self._errorSignal.emit(info)
 
     def initInfo(self):

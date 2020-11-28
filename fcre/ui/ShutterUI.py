@@ -160,7 +160,7 @@ class ShutterUI(QtWidgets.QWidget):
 
     def customReset(self):
         pass
-    
+
     def closeEvent(self, ev):
         if self._updateThread and self._updateThread.isRunning:
             self._updateThread.delSafely()

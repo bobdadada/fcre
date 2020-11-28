@@ -42,7 +42,7 @@ class CameraUI(QtWidgets.QWidget):
         self.type = type
         self.name = name
         self.devpool = devpool
-        
+
         if not relaxtime:
             relaxtime = 100
         self.relaxtime = relaxtime

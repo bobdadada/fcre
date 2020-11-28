@@ -40,7 +40,6 @@ class PZTControllerUI(QtWidgets.QWidget):
     _systemErrorSignal = QtCore.Signal()
     _outRangeSignal = QtCore.Signal()
     _errorSignal = QtCore.Signal(str)
-    _updateErrorSignal = QtCore.Signal(str, int)
 
     def __init__(self, name='pztcontroller', devpool=None, type='pztcontroller', numaxes=3, parent=None, **kwargs):
         super(PZTControllerUI, self).__init__(parent)
@@ -76,11 +75,10 @@ class PZTControllerUI(QtWidgets.QWidget):
         self._systemErrorSignal.connect(self._systemErrorFun)
         self._outRangeSignal.connect(self._outRangeFun)
         self._errorSignal.connect(self._errorFun)
-        self._updateErrorSignal.connect(self._updateErrorFun)
 
         # _updateErrorSignal信号发射计数，可在customInit中重新归0，从0开始发射此计数
         self._updateErrorSignalEmittedTimes = 0
-    
+
     def _moveDoneFun(self):
         self.updateInfo()
         self.positionInfoLine.setText(str(self._info['position']))
@@ -103,34 +101,24 @@ class PZTControllerUI(QtWidgets.QWidget):
             self._updateThread.stopSafely()
         showMessage('error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
         self.initButton.setEnabled(True)
-    
-    def _updateErrorFun(self, info, index):
-        # 由于_updateThread会发射很多此此信号，我们需要合并信号
-        if index == 0:
-            self._errorSignal.emit(info)
 
     def initInfo(self):
-        info = None
         try:
             info = self.devpool.doSafely(self.type, self.name, 'getInit')
+            if info:
+                self._info.update(info)
         except Exception as e:
             self._errorSignal.emit(str(e))
-        if not info:
-            return
-        else:
-            self._info.update(info)
 
     def updateInfo(self):
-        info = None
         try:
             info = self.devpool.doSafely(self.type, self.name, 'getInfo')
+            if info:
+                self._info.update(info)
         except Exception as e:
-            self._updateErrorSignal.emit(str(e), self._updateErrorSignalEmittedTimes)
-            self._updateErrorSignalEmittedTimes += 1
-        if not info:
-            return
-        else:
-            self._info.update(info)
+            if self._updateErrorSignalEmittedTimes == 0:
+                self._errorSignal.emit(str(e))
+                self._updateErrorSignalEmittedTimes += 1
 
     def setupUI(self):
         customLayout = QtWidgets.QVBoxLayout(self)
@@ -220,7 +208,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def customSingleMove(self, n):
         self.setButtonEnabled(False)
         self._singleMoveThreads[n].start()
-        
+
     def _moveFun(self):
         try:
             for i in range(self._info['numaxes']):
@@ -242,7 +230,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def customInit(self):
         self.initButton.setEnabled(False)
         if not self.devpool.do(self.type, self.name, 'isOpen'):
-            showMessage('error', 'device is not open! Please reconnect', 
+            showMessage('error', 'device is not open! Please reconnect',
                     QtWidgets.QMessageBox.Warning, parent=self)
             self.initButton.setEnabled(True)
             return
@@ -303,7 +291,7 @@ if __name__ == '__main__':
 
     pztui = PZTControllerUI('pzt', DevPool(), 'pilong', **{'numaxes': 2})
     # pztui.customInit()
-    
+
     d = DockArea()
     win.setCentralWidget(d)
     dock = Dock('pilong')

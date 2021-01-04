@@ -270,15 +270,19 @@ try:
                 for axe in self.device.axes:
                     axe = int(axe) - 1
                     if targets[axe] > self._info['range'][axe][1] or targets[axe] < self._info['range'][axe][0]:
+                        self._moveState = None
                         raise OutOfRange('Sorry, out of range in axe {}'.format(str(axe)))
                 print('{} targets: {}'.format(str(self.name), str(targets)))
                 self.device.MOV(self.device.axes, targets)
                 try:
                     pitools.waitontarget(self.device, timeout=timeout)
-                except SystemError as e:
+                except SystemError:
                     self.close()
                     self._moveState = None
-                    raise e
+                    raise
+                except:
+                    self._moveState = None
+                    raise
                 self._moveState = False
 
         def do(self, deviations, centers=None):
@@ -413,18 +417,31 @@ try:
                 targets = [int(t) for t in targets]
                 for i in range(self._info['numaxes']):
                     if targets[i] > self._info['range'][i][1] or targets[i] < self._info['range'][i][0]:
+                        self._moveState = None
                         raise OutOfRange('Sorry, out of range in axe {}'.format(str(i)))
                 print('{} targets: {}'.format(str(self.name), str(targets)))
                 for ind, target in enumerate(targets):
                     AMC.setTargetPosition(self.device, ind, target)
                     AMC.setMove(self.device, ind, 'true')
                 maxtime = time.time() + timeout
-                while any((AMC.getStatusMoving(self.device, ind)[1] == 1 for ind in range(self._info['numaxes'])), ):
-                    if time.time() > maxtime:
-                        self.close()
-                        self._moveState = None
-                        raise SystemError('waitontarget() timed out after %.1f seconds' % timeout)
-                    time.sleep(0.1)
+                while True:
+                    sts = []
+                    for ind in range(self._info['numaxes']):
+                        errno, status = AMC.getStatusMoving(self.device, ind)
+                        if errno:
+                            self.close()
+                            self._moveState = None
+                            raise SystemError('System error!')
+                        else:
+                            sts.append(status==1)  # status == 1 for moving status
+                    if any(sts):
+                        if time.time() > maxtime:
+                            self.close()
+                            self._moveState = None
+                            raise SystemError('waitontarget() timed out after %.1f seconds' % timeout)
+                        time.sleep(0.1)
+                    else:
+                        break
                 self._moveState = False
 
         def do(self, deviations, centers=None):

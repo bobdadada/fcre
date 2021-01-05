@@ -12,7 +12,9 @@ import importlib.util
 import os
 
 class OutOfRange(Exception):
-    pass
+    """
+    The target position is larger than the movable range of the piezoelectric guide.
+    """
 
 def showPortInfo():
     """

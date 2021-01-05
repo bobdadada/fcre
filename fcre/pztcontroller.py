@@ -265,26 +265,25 @@ try:
 
         def move(self, targets, timeout=60):
             with self._lock:
-                if not self.device:
-                    return
-                self._moveState = True
                 try:
-                    for axis in self.device.axes:
-                        axis = int(axis) - 1
-                        if targets[axis] > self._info['range'][axis][1] or targets[axis] < self._info['range'][axis][0]:
-                            raise OutOfRange('Sorry, out of range in axis {}'.format(str(axis)))
+                    self._moveState = True
+                    if not self.device:
+                        raise SystemError('No available device.')
+                    for i in self.device.axes:
+                        i = int(i) - 1
+                        if targets[i] > self._info['range'][i][1] or targets[i] < self._info['range'][i][0]:
+                            raise OutOfRange('Sorry, out of range in axis {}'.format(str(i)))
                     print('{} targets: {}'.format(str(self.name), str(targets)))
                     self.device.MOV(self.device.axes, targets)
-                    try:
-                        pitools.waitontarget(self.device, timeout=timeout)
-                    except SystemError:
-                        self.close()
-                        raise
-                except:
-                    self._moveState = None
-                    raise
-                else:
+                    pitools.waitontarget(self.device, timeout=timeout)
                     self._moveState = False
+                except SystemError:
+                    self._moveState = None
+                    self.close()
+                    raise
+                except:
+                    self._moveState = False
+                    raise
 
         def do(self, deviations, centers=None):
             with self._lock:
@@ -430,10 +429,10 @@ try:
 
         def move(self, targets, timeout=60):
             with self._lock:
-                if not self.device:
-                    return
-                self._moveState = True
                 try:
+                    self._moveState = True
+                    if not self.device:
+                        raise SystemError('No available device.')
                     targets = [int(t) for t in targets]
                     for i in range(self._info['numaxes']):
                         if targets[i] > self._info['range'][i][1] or targets[i] < self._info['range'][i][0]:
@@ -442,17 +441,16 @@ try:
                     for ind, target in enumerate(targets):
                         AMC.setTargetPosition(self.device, ind, target)
                         AMC.setMove(self.device, ind, 'true')
-                    try:
-                        for ind in range(self._info['numaxes']):
-                            amctools.waitontarget(self.device, ind, timeout)
-                    except SystemError:
-                        self.close()
-                        raise                   
-                except:
+                    for ind in range(self._info['numaxes']):
+                        amctools.waitontarget(self.device, ind, timeout)
+                    self._moveState = False         
+                except SystemError:
                     self._moveState = None
+                    self.close()
                     raise
-                else:
+                except:
                     self._moveState = False
+                    raise
 
         def do(self, deviations, centers=None):
             with self._lock:

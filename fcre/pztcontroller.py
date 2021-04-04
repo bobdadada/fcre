@@ -30,7 +30,7 @@ def showPortInfo():
         print(port_list)
         return len(port_list)
 
-class Controller(metaclass=ABCMeta):
+class PZTController(metaclass=ABCMeta):
     """
     PZT控制器抽象类，具体方法需要实现。
 
@@ -178,7 +178,7 @@ try:
         # pitools.startup(pidevice, stages=stages, refmode=refmode)
         return pidevice
 
-    class PIPZTController(Controller):
+    class PIPZTController(PZTController):
         """
         PI版本的PZT控制器，继承了Controller类型。
 
@@ -315,7 +315,7 @@ except ImportError:
 
 try:
     import fcre.AMC as AMC
-    
+
     class amctools:
 
         @staticmethod
@@ -335,7 +335,7 @@ try:
                 else:
                     break
 
-    class AMCPZTController(Controller):
+    class AMCPZTController(PZTController):
         """
         AMC版本的PZT控制器，继承了Controller类型。
 
@@ -443,7 +443,7 @@ try:
                         AMC.setMove(self.device, ind, 'true')
                     for ind in range(self._info['numaxes']):
                         amctools.waitontarget(self.device, ind, timeout)
-                    self._moveState = False         
+                    self._moveState = False
                 except SystemError:
                     self._moveState = None
                     self.close()

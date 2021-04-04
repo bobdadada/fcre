@@ -379,7 +379,8 @@ try:
             with self._lock:
                 _ranges = []
                 for i in range(self._info['numaxes']):
-                    _range = (-5000000, 5000000)
+                    # To clearly indentify the range of PZT
+                    _range = (-5000000, 5000000)  # need repairs!!
                     print('range for each axis {} is: {}'.format(str(i), str(_range)))
                     _ranges.append(_range)
                 # 总行程

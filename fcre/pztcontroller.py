@@ -314,7 +314,7 @@ except ImportError:
     PIPZTController = None
 
 try:
-    import fcre.AMC as AMC
+    import fcre._extern.AMC as AMC
 
     class amctools:
 

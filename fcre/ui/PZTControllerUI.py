@@ -289,7 +289,7 @@ if __name__ == '__main__':
     from pyqtgraph.dockarea import DockArea, Dock
     from fcre.pool import DevPool
 
-    pztui = PZTControllerUI('pzt', DevPool(), 'pilong', **{'numaxes': 2})
+    pztui = PZTControllerUI('pzt', DevPool(), 'pilong')
     # pztui.customInit()
 
     d = DockArea()

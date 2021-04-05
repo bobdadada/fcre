@@ -2,14 +2,16 @@
 
 __all__ = ['PIPZTController', 'showPortInfo', 'AMCPZTController']
 
+import os
+import importlib.util
 from abc import abstractmethod, ABCMeta
-import serial.tools.list_ports
 from textwrap import dedent
 import time
 import threading
 from platform import architecture
-import importlib.util
-import os
+import copy
+
+import serial.tools.list_ports
 
 class OutOfRange(Exception):
     """
@@ -86,10 +88,10 @@ class PZTController(metaclass=ABCMeta):
                 return True
 
     def getStartPosition(self):
-        return self._info['startPosition']
+        return copy.deepcopy(self._info['startPosition'])
 
     def getRange(self):
-        return self._info['range']
+        return copy.deepcopy(self._info['range'])
 
     def getInit(self):
         with self._lock:
@@ -210,13 +212,13 @@ try:
                 if self.device:
                     return
                 self.device = connectPIMachine(controllername, stages, refmode, mode, **kwargs)
-                self._info['numaxes'] = self.device.numaxes
-                self._moveState = False
                 self.init()
 
         # 获得基本参数
         def init(self):
             with self._lock:
+                self._info['numaxes'] = self.device.numaxes
+                self._moveState = False
                 rangemin = list(self.device.qTMN().values())
                 print('min range for each axis is: {}'.format(str(rangemin)))
                 rangemax = list(self.device.qTMX().values())
@@ -235,7 +237,8 @@ try:
                     print('start pos is: {}'.format(str(self._info['startPosition'])))
                 else:
                     if len(start) != self._info['numaxes']:
-                        raise TypeError('The number of axes set is not equal to the number of axes of the device.')
+                        raise TypeError('The number of axes set is not equal to the' 
+                                            'number of axes of the device.')
                     else:
                         self.move(start)
                         self._info['startPosition'] = self.getPosition()
@@ -271,7 +274,8 @@ try:
                         raise SystemError('No available device.')
                     for i in self.device.axes:
                         i = int(i) - 1
-                        if targets[i] > self._info['range'][i][1] or targets[i] < self._info['range'][i][0]:
+                        _range = self._info['range'][i]
+                        if (targets[i] > _range[1]) or (targets[i] < _range[0]):
                             raise OutOfRange('Sorry, out of range in axis {}'.format(str(i)))
                     print('{} targets: {}'.format(str(self.name), str(targets)))
                     self.device.MOV(self.device.axes, targets)
@@ -319,21 +323,31 @@ try:
     class amctools:
 
         @staticmethod
-        def waitontarget(device, axis, timeout):
+        def waitontarget(device, axis, timeout, eottimeout=1):
             maxtime = time.time() + timeout
+            target_range = AMC.getTargetRange(device, axis)[1]
+            last_pos = AMC.getPosition(device, axis)[1]
             while True:
-                sts = []
                 errno, status = AMC.getStatusMoving(device, axis)
                 if errno:
                     raise SystemError('System error! Please reconnect the device.')
-                else:
-                    sts.append(status==1)  # status == 1 for moving status
-                if any(sts):
+
+                if status == 1: # status == 1 for moving status
+                    # End of Travel detection
+                    pos = AMC.getPosition(device, axis)[1]
+                    if abs(last_pos - pos) < target_range:
+                        time.sleep(eottimeout)
+                        pos = AMC.getPosition(device, axis)[1]
+                        if abs(last_pos - pos) < target_range:
+                            AMC.setMove(device, axis, False)
+                    last_pos = pos
+
                     if time.time() > maxtime:
                         raise SystemError('waitontarget() timed out after %.1f seconds' % timeout)
                     time.sleep(0.1)
                 else:
                     break
+
 
     class AMCPZTController(PZTController):
         """
@@ -362,29 +376,29 @@ try:
             super(AMCPZTController, self).__init__()
             self.name = name
 
-        def connect(self, numaxes, ip='192.168.1.1', *args, **kwargs):
+        def connect(self, ip='192.168.1.1', *args, **kwargs):
             with self._lock:
                 if self.device:
                     return
                 self.device = AMC.connect(ip)
-                self._info['numaxes'] = numaxes
-                for i in range(self._info['numaxes']):
-                    # AMC.setReset(self.device, i)
-                    AMC.setOutput(self.device, i, 'true')
-                    time.sleep(0.1)
-                self._moveState = False
                 self.init()
 
         def init(self):
             with self._lock:
-                _ranges = []
+                for i in range(3):  # AMC can only control axis [0..2]
+                    if AMC.setOutput(self.device, i, True) != 0:
+                        break
+                    else:
+                        AMC.setMove(self.device, i, False)
+                self._info['numaxes'] = i
+                self._moveState = False
+
+                # End of Travel detection
                 for i in range(self._info['numaxes']):
-                    # To clearly indentify the range of PZT
-                    _range = (-5000000, 5000000)  # need repairs!!
-                    print('range for each axis {} is: {}'.format(str(i), str(_range)))
-                    _ranges.append(_range)
+                    AMC.setEotOutputDeactive(self.device, i, True)
+
                 # 总行程
-                self._info['range'] = _ranges
+                self._info['range'] = [(None,None), (None,None)]
                 self.setStartPosition()
 
         def setStartPosition(self, start=None):
@@ -398,14 +412,13 @@ try:
                     print('start pos is: {}'.format(str(self._info['startPosition'])))
                 else:
                     if len(start) != self._info['numaxes']:
-                        raise TypeError('The number of axes set is not equal to the number of axes of the device.')
+                        raise TypeError('The number of axes set is not equal to the' \
+                                        'number of axes of the device.')
                     else:
-                        self._info['startPosition'] = start
+                        self.move(start)
+                        self._info['startPosition'] = [AMC.getPosition(self.device, i)[1] for i in
+                                                      range(self._info['numaxes'])]
                         print('start pos is: {}'.format(str(self._info['startPosition'])))
-                for ind, target in enumerate(self._info['startPosition']):
-                    AMC.setTargetPosition(self.device, ind, target)
-                    # AMC.setMove(self.device, ind, 'true')
-                    # time.sleep(0.5)
 
         def getPosition(self):
             with self._lock:
@@ -428,7 +441,7 @@ try:
                 self._info['deviation'] = deviation
                 return tuple(deviation)
 
-        def move(self, targets, timeout=60):
+        def move(self, targets, timeout=60, eottimeout=1):
             with self._lock:
                 try:
                     self._moveState = True
@@ -436,20 +449,45 @@ try:
                         raise SystemError('No available device.')
                     targets = [int(t) for t in targets]
                     for i in range(self._info['numaxes']):
-                        if targets[i] > self._info['range'][i][1] or targets[i] < self._info['range'][i][0]:
-                            raise OutOfRange('Sorry, out of range in axis {}'.format(str(i)))
+                        _range = self._info['range'][i]
+                        if (None not in _range):
+                            if (targets[i] > _range[1]) or (targets[i] < _range[0]):
+                                raise OutOfRange('Sorry, out of range in axis {}'.format(str(i)))
+                        else:
+                            continue
                     print('{} targets: {}'.format(str(self.name), str(targets)))
-                    for ind, target in enumerate(targets):
-                        AMC.setTargetPosition(self.device, ind, target)
-                        AMC.setMove(self.device, ind, 'true')
-                    for ind in range(self._info['numaxes']):
-                        amctools.waitontarget(self.device, ind, timeout)
+                    for i, target in enumerate(targets):
+                        AMC.setTargetPosition(self.device, i, target)
+                        AMC.setMove(self.device, i, True)
+                    for i in range(self._info['numaxes']):
+                        amctools.waitontarget(self.device, i, timeout, eottimeout)
                     self._moveState = False
+                    
+                    # update range!
+                    err_info = "" 
+                    for i in range(self._info['numaxes']):    
+                        pos = AMC.getPosition(self.device, i)[1]
+                        target_range = AMC.getTargetRange(self.device, i)[1]
+                        if abs(pos - targets[i]) > target_range:
+                            _range = list(self._info['range'][i])
+                            if pos < targets[i]:
+                                _range[1] = pos
+                            else:
+                                _range[0] = pos
+                            self._info['range'][i] = tuple(_range)
+                            print('range for axis {} is: {}'.format(str(i), str(_range)))
+                            err_info += 'Sorry, out of range in axis {}. ' \
+                                    'Position {} Range {}\n'.format(str(i), str(pos), str(_range))
+                    if err_info:
+                        raise OutOfRange(err_info)
+
                 except SystemError:
                     self._moveState = None
                     self.close()
                     raise
                 except:
+                    for i in range(self._info['numaxes']):
+                        AMC.setMove(self.device, i, False)
                     self._moveState = False
                     raise
 
@@ -468,10 +506,8 @@ try:
                     return
                 try:
                     for i in range(self._info['numaxes']):
-                        AMC.setMove(self.device, i, 'false')
-                        time.sleep(0.1)
-                        AMC.setOutput(self.device, i, 'false')
-                        time.sleep(0.1)
+                        AMC.setMove(self.device, i, False)
+                        AMC.setOutput(self.device, i, False)
                     AMC.close(self.device)
                 except Exception as e:
                     print(str(e))

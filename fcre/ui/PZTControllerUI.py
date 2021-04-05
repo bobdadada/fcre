@@ -195,7 +195,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def _singleMoveFun(self, n):
         try:
             self._lastMove[n] = self._cache[n]
-            self.devpool.doSafely(self.type, self.name, 'move', tuple(self._lastMove))
+            self.devpool.doSafely(self.type, self.name, 'move', tuple(self._lastMove[:(self._info['numaxes'])]))
         except OutOfRange:
             self._outRangeSignal.emit()
         except SystemError:
@@ -213,7 +213,7 @@ class PZTControllerUI(QtWidgets.QWidget):
         try:
             for i in range(self._info['numaxes']):
                 self._lastMove[i] = self._cache[i]
-            self.devpool.doSafely(self.type, self.name, 'move', tuple(self._lastMove))
+            self.devpool.doSafely(self.type, self.name, 'move', tuple(self._lastMove[:(self._info['numaxes'])]))
         except OutOfRange:
             self._outRangeSignal.emit()
         except SystemError:

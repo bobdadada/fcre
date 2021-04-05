@@ -28,12 +28,6 @@ class DevMethodNotImplementedError(DevPoolError):
     设备方法获取失败
     """
 
-class DevMethodExecError(DevPoolError):
-    """
-    设备方法执行失败
-    """
-
-
 # 将打印结果都保存到文件中
 def _decorator_write_to_file(file):
     def wrap(_print):
@@ -231,7 +225,7 @@ class DevPool(object):
         except Exception as e:
             self._print('{}: Run method:{} failed'.format(datetime.now(), attr))
             self._print('{}: {}'.format(datetime.now(), str(e)))
-            raise DevMethodExecError(str(e))
+            raise
     
     def do(self, type, name, attr, *args, **kwargs):
         dev = self._getDevice(type, name)

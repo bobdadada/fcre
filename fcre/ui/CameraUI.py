@@ -93,11 +93,11 @@ class CameraUI(QtWidgets.QWidget):
         self._viewbox.addItem(item, ignoreBounds=ignoreBounds)
 
     def _readErrorFun(self, name):
-        showMessage('error', "can't read image from camera {}!".format(name), QtWidgets.QMessageBox.Warning, parent=self)
+        showMessage('Error', "can't read image from camera {}!".format(name), QtWidgets.QMessageBox.Warning, parent=self)
 
     def customSave(self):
         if not isinstance(self._currImg, np.ndarray):
-            showMessage('error', "camera not open", QtWidgets.QMessageBox.Warning, parent=self)
+            showMessage('Error', "camera not open", QtWidgets.QMessageBox.Warning, parent=self)
             return
         self.customStop()
         filename, ok = QtWidgets.QFileDialog.getSaveFileName(self, 'save points to file', os.getcwd(), '*.jpg,*.tiff')

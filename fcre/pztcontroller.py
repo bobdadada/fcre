@@ -268,6 +268,9 @@ try:
 
         def move(self, targets, timeout=60):
             with self._lock:
+                if len(targets) != self._info['numaxes']:
+                    raise TypeError('The number of axes set is not equal to the' 
+                                    'number of axes of the device.')
                 try:
                     self._moveState = True
                     if not self.device:
@@ -443,6 +446,9 @@ try:
 
         def move(self, targets, timeout=60, eottimeout=1):
             with self._lock:
+                if len(targets) != self._info['numaxes']:
+                    raise TypeError('The number of axes set is not equal to the' 
+                                    'number of axes of the device.')
                 try:
                     self._moveState = True
                     if not self.device:

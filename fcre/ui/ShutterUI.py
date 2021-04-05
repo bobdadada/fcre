@@ -109,7 +109,7 @@ class ShutterUI(QtWidgets.QWidget):
             self._updateThread = None
             self.devpool.do(self.type, self.name, 'close')
             self.initButton.setEnabled(True)
-            showMessage('error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
+            showMessage('Error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
 
     def customEnable(self, x):
         try:
@@ -120,7 +120,7 @@ class ShutterUI(QtWidgets.QWidget):
         except Exception as e:
             self.devpool.do(self.type, self.name, 'close')
             self.initButton.setEnabled(True)
-            showMessage('error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
+            showMessage('Error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
 
     def updateInfo(self):
         info = self.devpool.do(self.type, self.name, 'getInfo')
@@ -132,7 +132,7 @@ class ShutterUI(QtWidgets.QWidget):
     def customInit(self):
         self.initButton.setEnabled(False)
         if not self.devpool.do(self.type, self.name, 'isOpen'):
-            showMessage('error', 'device is not open! Please reconnect', QtWidgets.QMessageBox.Warning, parent=self)
+            showMessage('NotOpen', 'device is not open! Please reconnect', QtWidgets.QMessageBox.Warning, parent=self)
             self.initButton.setEnabled(True)
             return
         try:

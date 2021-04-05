@@ -89,17 +89,19 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.devpool.do(self.type, self.name, 'close')
         if self._updateThread.isRunning():
             self._updateThread.stopSafely()
-        showMessage('error', "{}系统异常,请排除错误重新连接.".format(self.name), QtWidgets.QMessageBox.Warning, parent=self)
+        showMessage('SystemError', "{}系统异常,请排除错误重新连接.".format(self.name),
+                        QtWidgets.QMessageBox.Warning, parent=self)
         self.initButton.setEnabled(True)
 
     def _outRangeFun(self):
-        showMessage('error', "{}超出范围,请输入正确值.".format(self.name), QtWidgets.QMessageBox.Warning, parent=self)
+        showMessage('OutofRange', "{}超出范围,请输入正确值.".format(self.name),
+                QtWidgets.QMessageBox.Warning, parent=self)
 
     def _errorFun(self, info):
         self.devpool.do(self.type, self.name, 'close')
         if self._updateThread.isRunning():
             self._updateThread.stopSafely()
-        showMessage('error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
+        showMessage('Error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
         self.initButton.setEnabled(True)
 
     def initInfo(self):

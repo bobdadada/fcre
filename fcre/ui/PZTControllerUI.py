@@ -94,6 +94,8 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.initButton.setEnabled(True)
 
     def _outRangeFun(self):
+        self._info['range'] = self.devpool.do(self.type, self.name, 'getRange')
+        self.rangeInfoLine.setText(str(self._info['range']))
         showMessage('OutofRange', "{}超出范围,请输入正确值.".format(self.name),
                 QtWidgets.QMessageBox.Warning, parent=self)
 

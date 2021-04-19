@@ -326,24 +326,32 @@ try:
     class amctools:
 
         @staticmethod
-        def waitontarget(device, axis, timeout, eottimeout=1):
+        def waitontarget(device, axis, timeout=60, eottimeout=1):
             maxtime = time.time() + timeout
             target_range = AMC.getTargetRange(device, axis)[1]
+
+            # eot detection
+            max_interval = int(eottimeout/0.1) + 1
             last_pos = AMC.getPosition(device, axis)[1]
+            i_interval = 0
+
             while True:
                 errno, status = AMC.getStatusMoving(device, axis)
                 if errno:
                     raise SystemError('System error! Please reconnect the device.')
 
                 if status == 1: # status == 1 for moving status
-                    # End of Travel detection
-                    pos = AMC.getPosition(device, axis)[1]
-                    if abs(last_pos - pos) < target_range:
-                        time.sleep(eottimeout)
+
+                    # no-blocking End of Travel detection
+                    if i_interval != max_interval:
+                        i_interval += 1
+                    else:
+                        i_interval = 0
+                        
                         pos = AMC.getPosition(device, axis)[1]
                         if abs(last_pos - pos) < target_range:
                             AMC.setMove(device, axis, False)
-                    last_pos = pos
+                        last_pos = pos
 
                     if time.time() > maxtime:
                         raise SystemError('waitontarget() timed out after %.1f seconds' % timeout)

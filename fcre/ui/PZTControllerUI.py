@@ -2,7 +2,7 @@ from qtpy import QtWidgets, QtCore
 from pyqtgraph.widgets.SpinBox import SpinBox
 
 from qtdptools.thread import NonstopDo, SingleDo
-from qtdptools.show_utils import showMessage
+from qtdptools.show_utils import showQuickMessage
 from fcre.pztcontroller import OutOfRange
 
 __all__ = ['PZTControllerUI']
@@ -89,21 +89,21 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.devpool.do(self.type, self.name, 'close')
         if self._updateThread.isRunning():
             self._updateThread.stopSafely()
-        showMessage('SystemError', "{}系统异常,请排除错误重新连接.".format(self.name),
+        showQuickMessage(5000, 'SystemError', "{}系统异常,请排除错误重新连接.".format(self.name),
                         QtWidgets.QMessageBox.Warning, parent=self)
         self.initButton.setEnabled(True)
 
     def _outRangeFun(self):
         self._info['range'] = self.devpool.do(self.type, self.name, 'getRange')
         self.rangeInfoLine.setText(str(self._info['range']))
-        showMessage('OutofRange', "{}超出范围,请输入正确值.".format(self.name),
+        showQuickMessage(5000, 'OutofRange', "{}超出范围,请输入正确值.".format(self.name),
                 QtWidgets.QMessageBox.Warning, parent=self)
 
     def _errorFun(self, info):
         self.devpool.do(self.type, self.name, 'close')
         if self._updateThread.isRunning():
             self._updateThread.stopSafely()
-        showMessage('Error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
+        showQuickMessage(5000, 'Error', str(info), QtWidgets.QMessageBox.Critical, parent=self)
         self.initButton.setEnabled(True)
 
     def initInfo(self):
@@ -234,7 +234,7 @@ class PZTControllerUI(QtWidgets.QWidget):
     def customInit(self):
         self.initButton.setEnabled(False)
         if not self.devpool.do(self.type, self.name, 'isOpen'):
-            showMessage('error', 'device is not open! Please reconnect',
+            showQuickMessage(5000, 'NotOpen', 'device is not open! Please reconnect',
                     QtWidgets.QMessageBox.Warning, parent=self)
             self.initButton.setEnabled(True)
             return

@@ -9,7 +9,7 @@ import cv2 as cv
 from qtpy import QtWidgets, QtCore
 import pyqtgraph as pg
 
-from qtdptools.show_utils import showMessage
+from qtdptools.show_utils import showQuickMessage
 
 __all__ = ['CameraUI']
 
@@ -93,11 +93,11 @@ class CameraUI(QtWidgets.QWidget):
         self._viewbox.addItem(item, ignoreBounds=ignoreBounds)
 
     def _readErrorFun(self, name):
-        showMessage('Error', "can't read image from camera {}!".format(name), QtWidgets.QMessageBox.Warning, parent=self)
+        showQuickMessage(5000, 'Error', "can't read image from camera {}!".format(name), QtWidgets.QMessageBox.Warning, parent=self)
 
     def customSave(self):
         if not isinstance(self._currImg, np.ndarray):
-            showMessage('Error', "camera not open", QtWidgets.QMessageBox.Warning, parent=self)
+            showQuickMessage(5000, 'Error', "camera not open", QtWidgets.QMessageBox.Warning, parent=self)
             return
         self.customStop()
         filename, ok = QtWidgets.QFileDialog.getSaveFileName(self, 'save points to file', os.getcwd(), '*.jpg,*.tiff')

@@ -329,6 +329,7 @@ try:
         def waitontarget(device, axis, timeout=60, eottimeout=1):
             maxtime = time.time() + timeout
             target_range = AMC.getTargetRange(device, axis)[1]
+            target_pos = AMC.getTargetPosition(device, axis)[1]
 
             # eot detection
             max_interval = int(eottimeout/0.1) + 1
@@ -342,6 +343,11 @@ try:
 
                 if status == 1: # status == 1 for moving status
 
+                    pos = AMC.getPosition(device, axis)[1]
+                    if abs(pos - target_pos) < target_range:
+                        AMC.setMove(device, axis, False)
+                        break
+
                     # no-blocking End of Travel detection
                     if i_interval != max_interval:
                         i_interval += 1
@@ -351,6 +357,7 @@ try:
                         pos = AMC.getPosition(device, axis)[1]
                         if abs(last_pos - pos) < target_range:
                             AMC.setMove(device, axis, False)
+                            return False
                         last_pos = pos
 
                     if time.time() > maxtime:
@@ -358,6 +365,8 @@ try:
                     time.sleep(0.1)
                 else:
                     break
+            
+            return True
 
 
     class AMCPZTController(PZTController):
@@ -461,6 +470,8 @@ try:
                     self._moveState = True
                     if not self.device:
                         raise SystemError('No available device.')
+
+                    # out of range judgement
                     targets = [int(t) for t in targets]
                     for i in range(self._info['numaxes']):
                         _range = self._info['range'][i]
@@ -469,30 +480,34 @@ try:
                                 raise OutOfRange('Sorry, out of range in axis {}'.format(str(i)))
                         else:
                             continue
+                    
+                    #　move to targets
                     print('{} targets: {}'.format(str(self.name), str(targets)))
                     for i, target in enumerate(targets):
                         AMC.setTargetPosition(self.device, i, target)
                         AMC.setMove(self.device, i, True)
+                    
+                    # wait
+                    states = [None] * self._info['numaxes']
                     for i in range(self._info['numaxes']):
-                        amctools.waitontarget(self.device, i, timeout, eottimeout)
+                        states[i] = amctools.waitontarget(self.device, i, timeout, eottimeout)
                     self._moveState = False
                     
                     # update range!
-                    err_info = "" 
-                    for i in range(self._info['numaxes']):    
-                        pos = AMC.getPosition(self.device, i)[1]
-                        target_range = AMC.getTargetRange(self.device, i)[1]
-                        if abs(pos - targets[i]) > target_range:
-                            _range = list(self._info['range'][i])
-                            if pos < targets[i]:
-                                _range[1] = pos
-                            else:
-                                _range[0] = pos
-                            self._info['range'][i] = tuple(_range)
-                            print('range for axis {} is: {}'.format(str(i), str(_range)))
-                            err_info += 'Sorry, out of range in axis {}. ' \
-                                    'Position {} Range {}\n'.format(str(i), str(pos), str(_range))
-                    if err_info:
+                    if not all(states):
+                        err_info = "" 
+                        for i, state in enumerate(states):
+                            if not state:
+                                pos = AMC.getPosition(self.device, i)[1]
+                                _range = list(self._info['range'][i])
+                                if pos < targets[i]:
+                                    _range[1] = pos
+                                else:
+                                    _range[0] = pos
+                                self._info['range'][i] = tuple(_range)
+                                print('range for axis {} is: {}'.format(str(i), str(_range)))
+                                err_info += 'Sorry, out of range in axis {}. ' \
+                                        'Position {} Range {}\n'.format(str(i), str(pos), str(_range))
                         raise OutOfRange(err_info)
 
                 except SystemError:

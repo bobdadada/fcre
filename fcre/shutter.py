@@ -186,6 +186,7 @@ class SCShutter(object):
         with self._lock:
             if not self.device:
                 return
+            self.disable()
             self._info['mode'] = n
             self._write('mode=%d'%n)
 

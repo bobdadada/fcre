@@ -39,11 +39,14 @@ class PZTController(metaclass=ABCMeta):
     proprety:
         device-目标设备对象
         _info-字典类型，保存设备对象主要信息
+        _device_info-字典类型，保存连接设备的信息
         _lock-锁，保证多线程安全
         _moveState-移动状态
 
     method:
         __init__-初始化
+        startup-重置设备时需要运行的方法。对于大部分设备，掉电后都需要运行此方法
+        restore-返回初始位置
         isOpen-判断设备是否打开
         isMoving-判断是否在移动
         getStartPosition-返回目标设备的初始位置
@@ -56,7 +59,6 @@ class PZTController(metaclass=ABCMeta):
         getPosition-获得当前的位置
         getDeviation-获得当前位置距离设备的偏移
         move-以绝对坐标的形式移动到目标位置
-        do-恢复距离初始位置的偏移量
         close-关闭物理设备
     """
 
@@ -67,11 +69,23 @@ class PZTController(metaclass=ABCMeta):
                       'range': [],
                       'position': None,
                       'deviation': None}
+        self._device_info = {}
         self._moveState = None
         self._lock = threading.RLock()
 
-    # 返回初始位置
-    def reset(self):
+    @abstractmethod
+    def setNumaxes_d(self):
+        pass
+
+    @abstractmethod
+    def setRange_d(self):
+        pass
+
+    @abstractmethod
+    def startup(self):
+        pass
+
+    def restore(self):
         with self._lock:
             if not self.device:
                 return
@@ -116,25 +130,68 @@ class PZTController(metaclass=ABCMeta):
             self.setStartPosition(self._info['startPosition'])
             self.move(self._info['position'])
 
-    @abstractmethod
-    def setStartPosition(self, start):
-        pass
+    def setRange(self, _range=None):
+        with self._lock:
+            if not self.device:
+                return
+            if not _range:
+                self.setRange_d()
+            else:
+                if len(_range) != self._info['numaxes']:
+                    raise TypeError('The number of axes set is not equal to the' 
+                                        'number of axes of the device.')
+                else:
+                    t_range = []
+                    for axis_range in _range:
+                        if len(axis_range) != 2:
+                            raise TypeError('Parameter must be a sequence of two part elements.')
+                        else:
+                            t_range.append(tuple(axis_range))
+                    self._info['range'] = tuple(t_range)
 
+    def setStartPosition(self, start=None):
+        with self._lock:
+            if not self.device:
+                return
+            if start:
+                if len(start) != self._info['numaxes']:
+                    raise TypeError('The number of axes set is not equal to the' \
+                                    'number of axes of the device.')
+                else:
+                    self.move(start)
+
+            # 开始位置
+            self._info['startPosition'] = self.getPosition()
+            print('start pos is: {}'.format(str(self._info['startPosition'])))
+
+    def getDeviation(self, centers=None):
+        with self._lock:
+            if not self.device:
+                return
+            if centers is None:
+                centers = self._info['startPosition']
+            deviation = []
+            pos = self.getPosition()
+            for ind, p in enumerate(pos):
+                deviation.append(p - centers[ind])
+                self._info['deviation'] = deviation
+            return tuple(deviation)
+    
     @abstractmethod
     def getPosition(self):
-        pass
-
-    @abstractmethod
-    def getDeviation(self, centers=None):
         pass
 
     @abstractmethod
     def move(self, targets):
         pass
 
-    @abstractmethod
-    def do(self, deviations):
-        pass
+    def moveRel(self, reltargets):
+        with self._lock:
+            if not self.device:
+                return
+            pos = self.getPosition()
+            targets = [float(p+reltarget) for p, reltarget in zip(pos, reltargets)]
+            self.move(targets)
 
     @abstractmethod
     def close(self):
@@ -143,12 +200,10 @@ class PZTController(metaclass=ABCMeta):
 try:
     from pipython import GCSDevice, pitools
 
-    def connectPIMachine(name, stages, refmode, mode, **kwargs):
+    def connectPIMachine(name, mode, **kwargs):
         """
         连接PI设备具有三种方式
         :param name: 控制器的名称
-        :param stages: 控制器管理的平台
-        :param refmode:
         :param mode: 连接的模式，可以为RS232，USB，TCPIP
         :param kwargs: 对应连接模式下具体的参数
         :return: 返回目标设备对象
@@ -176,8 +231,6 @@ try:
             '''))
             return
         print('connected: {}'.format(pidevice.qIDN().strip()))
-        # print('initialize connected stages...')
-        # pitools.startup(pidevice, stages=stages, refmode=refmode)
         return pidevice
 
     class PIPZTController(PZTController):
@@ -193,13 +246,12 @@ try:
         method:
             __init__-初始化
             connect-连接PI设备
-            init-初始化，获得物理设备的具体参数
+            _init_d-初始化，获得物理设备的具体参数
             isOpen-判断设备是否打开
             setStartPosition-设置初始位置
             getPosition-获得当前的位置
             getDeviation-获得当前位置距离设备的偏移
             move-以绝对坐标的形式移动到目标位置
-            do-恢复距离初始位置的偏移量
             close-关闭物理设备
         """
 
@@ -211,38 +263,43 @@ try:
             with self._lock:
                 if self.device:
                     return
-                self.device = connectPIMachine(controllername, stages, refmode, mode, **kwargs)
-                self.init()
+                self._device_info.update(controllername=controllername, stages=stages, refmode=refmode, **kwargs)
+                self.device = connectPIMachine(controllername, mode, **kwargs)
+                self._init_d()
 
         # 获得基本参数
-        def init(self):
+        def _init_d(self):
             with self._lock:
-                self._info['numaxes'] = self.device.numaxes
+                self.setNumaxes_d()
+                self.setRange_d()
+                self.setStartPosition()
                 self._moveState = False
+        
+        def setNumaxes_d(self):
+            with self._lock:
+                if not self.device:
+                    return
+                self._info['numaxes'] = self.device.numaxes
+
+        def setRange_d(self):
+            with self._lock:
+                if not self.device:
+                    return
                 rangemin = list(self.device.qTMN().values())
                 print('min range for each axis is: {}'.format(str(rangemin)))
                 rangemax = list(self.device.qTMX().values())
                 print('max range for each axis is: {}'.format(str(rangemax)))
                 # 总行程
                 self._info['range'] = tuple(zip(rangemin, rangemax))
-                self.setStartPosition()
 
-        def setStartPosition(self, start=None):
+        # PI运行时需要初始扫描参考点
+        def startup(self):
             with self._lock:
                 if not self.device:
                     return
-                if not start:
-                    # 开始位置
-                    self._info['startPosition'] = self.getPosition()
-                    print('start pos is: {}'.format(str(self._info['startPosition'])))
-                else:
-                    if len(start) != self._info['numaxes']:
-                        raise TypeError('The number of axes set is not equal to the' 
-                                            'number of axes of the device.')
-                    else:
-                        self.move(start)
-                        self._info['startPosition'] = self.getPosition()
-                        print('start pos is: {}'.format(str(self._info['startPosition'])))
+                print('initialize connected stages...')
+                pitools.startup(self.device, stages=self._device_info['stages'], 
+                        refmode=self._device_info['refmode'])            
 
         def getPosition(self):
             with self._lock:
@@ -253,18 +310,6 @@ try:
                 for i in range(self._info['numaxes']):
                     rt.append(r[str(i + 1)])
                 return tuple(rt)
-
-        def getDeviation(self, centers=None):
-            with self._lock:
-                if not self.device:
-                    return
-                if centers is None:
-                    centers = self._info['startPosition']
-                deviation = []
-                pos = self.getPosition()
-                for ind, p in enumerate(pos):
-                    deviation.append(p - centers[ind])
-                return tuple(deviation)
 
         def move(self, targets, timeout=60):
             with self._lock:
@@ -292,15 +337,6 @@ try:
                     self._moveState = False
                     raise
 
-        def do(self, deviations, centers=None):
-            with self._lock:
-                if not self.device:
-                    return
-                if centers is None:
-                    centers = self._info['startPosition']
-                targets = [float(y - x) for x, y in zip(deviations, centers)]
-                self.move(targets)
-
         def close(self):
             with self._lock:
                 if not self.device:
@@ -311,6 +347,7 @@ try:
                     print(str(e))
                 finally:
                     self.device = None
+                    self._device_info.clear()
 
         def __del__(self):
             print('关闭PI压电:{}'.format(self.name))
@@ -382,13 +419,12 @@ try:
         method:
             __init__-初始化
             connect-连接AMC设备
-            init-初始化，获得物理设备的具体参数
+            _init_d-初始化，获得物理设备的具体参数
             isOpen-判断设备是否打开
             setStartPosition-设置初始位置
             getPosition-获得当前的位置
             getDeviation-获得当前位置距离设备的偏移
             move-以绝对坐标的形式移动到目标位置
-            do-恢复距离初始位置的偏移量
             close-关闭物理设备
         """
 
@@ -400,45 +436,46 @@ try:
             with self._lock:
                 if self.device:
                     return
+                self._device_info.update(ip=ip)
                 self.device = AMC.connect(ip)
-                self.init()
+                self._init_d()
 
-        def init(self):
+        def _init_d(self):
             with self._lock:
+                self.setNumaxes_d()
+                self.setRange_d()
+                self.setStartPosition()
+                self._moveState = False
+        
+        def setNumaxes_d(self):
+            with self._lock:
+                if not self.device:
+                    return
                 for i in range(3):  # AMC can only control axis [0..2]
                     if AMC.setOutput(self.device, i, True) != 0:
                         break
                     else:
                         AMC.setMove(self.device, i, False)
                 self._info['numaxes'] = i
-                self._moveState = False
 
-                # End of Travel detection
-                for i in range(self._info['numaxes']):
-                    AMC.setEotOutputDeactive(self.device, i, True)
-
-                # 总行程
-                self._info['range'] = [(None,None), (None,None)]
-                self.setStartPosition()
-
-        def setStartPosition(self, start=None):
+        def setRange_d(self):
             with self._lock:
                 if not self.device:
                     return
-                if not start:
-                    # 开始位置
-                    self._info['startPosition'] = [AMC.getPosition(self.device, i)[1] for i in
-                                                   range(self._info['numaxes'])]
-                    print('start pos is: {}'.format(str(self._info['startPosition'])))
-                else:
-                    if len(start) != self._info['numaxes']:
-                        raise TypeError('The number of axes set is not equal to the' \
-                                        'number of axes of the device.')
-                    else:
-                        self.move(start)
-                        self._info['startPosition'] = [AMC.getPosition(self.device, i)[1] for i in
-                                                      range(self._info['numaxes'])]
-                        print('start pos is: {}'.format(str(self._info['startPosition'])))
+                t_range = []
+                # End of Travel detection
+                for i in range(self._info['numaxes']):
+                    AMC.setEotOutputDeactive(self.device, i, True)
+                    t_range.append((None,None))
+
+                # 总行程
+                self._info['range'] = tuple(t_range)
+        
+        def startup(self):
+            with self._lock:
+                if not self.device:
+                    return
+                self.setRange_d()
 
         def getPosition(self):
             with self._lock:
@@ -447,19 +484,6 @@ try:
                 pos = [AMC.getPosition(self.device, i)[1] for i in range(self._info['numaxes'])]
                 self._info['position'] = pos
                 return tuple(pos)
-
-        def getDeviation(self, centers=None):
-            with self._lock:
-                if not self.device:
-                    return
-                if centers is None:
-                    centers = self._info['startPosition']
-                deviation = []
-                pos = self.getPosition()
-                for ind, p in enumerate(pos):
-                    deviation.append(p - centers[ind])
-                self._info['deviation'] = deviation
-                return tuple(deviation)
 
         def move(self, targets, timeout=60, eottimeout=1):
             with self._lock:
@@ -520,15 +544,6 @@ try:
                     self._moveState = False
                     raise
 
-        def do(self, deviations, centers=None):
-            with self._lock:
-                if not self.device:
-                    return
-                if centers is None:
-                    centers = self._info['startPosition']
-                targets = [float(y - x) for x, y in zip(deviations, centers)]
-                self.move(targets)
-
         def close(self):
             with self._lock:
                 if not self.device:
@@ -542,6 +557,7 @@ try:
                     print(str(e))
                 finally:
                     self.device = None
+                    self._device_info.clear()
 
         def __del__(self):
             print('关闭AMC压电:{}'.format(self.name))

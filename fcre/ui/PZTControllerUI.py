@@ -24,7 +24,7 @@ class PZTControllerUI(QtWidgets.QWidget):
 
         _updateThread-循环的线程对象，更新PZT位置
         _moveThread-单次运行的线程对象，移动到目标位置
-        _resetThread-单次运行的线程对象，移动到初始位置
+        _restoreThread-单次运行的线程对象，移动到初始位置
         _doThread-单次运行的线程对象，回归偏移
         __singleMove-单次运行的线程对象列表，移动每个轴到目标位置
 
@@ -62,7 +62,8 @@ class PZTControllerUI(QtWidgets.QWidget):
         # 配置线程对象
         self._updateThread = NonstopDo(self._updateFun, intervalms=100)  # 更新间隔100ms,即10Hz
         self._moveThread = SingleDo(self._moveFun)  # 线程对象，对应customMove
-        self._resetThread = SingleDo(self._resetFun)  # 线程对象，对应customReset
+        self._restoreThread = SingleDo(self._restoreFun)  # 线程对象，对应customRestore
+        self._startupThread = SingleDo(self._startupFun)  # 线程对象，对应customStartup
         self._singleMoveThreads = []  # 线程对象列表，对应于单个轴customSingleMove
         for i in range(self._info['numaxes']):
             self._singleMoveThreads.append(SingleDo(self._singleMoveFun, n=i))
@@ -130,22 +131,28 @@ class PZTControllerUI(QtWidgets.QWidget):
         customLayout.addWidget(QtWidgets.QLabel('type: {}, name: {}'.format(self.type, self.name)))
 
         buttons = QtWidgets.QWidget()
-        buttonly = QtWidgets.QGridLayout(buttons)
+        buttonsly = QtWidgets.QGridLayout(buttons)
         self.initButton = QtWidgets.QPushButton('interface')
         self.initButton.setToolTip('launch interactive interface')
         self.initButton.clicked.connect(lambda: self.customInit())
-        buttonly.addWidget(self.initButton)
-        self.resetButton = QtWidgets.QPushButton('reset')
-        self.resetButton.setEnabled(False)
-        self.resetButton.clicked.connect(lambda: self.customReset())
-        buttonly.addWidget(self.resetButton)
+        buttonsly.addWidget(self.initButton)
+        self.restoreButton = QtWidgets.QPushButton('restore')
+        self.restoreButton.setToolTip('restore to initial position')
+        self.restoreButton.setEnabled(False)
+        self.restoreButton.clicked.connect(lambda: self.customRestore())
+        buttonsly.addWidget(self.restoreButton)
         self.moveButton = QtWidgets.QPushButton('move')
         self.moveButton.setEnabled(False)
         self.moveButton.clicked.connect(lambda: self.customMove())
-        buttonly.addWidget(self.moveButton)
+        buttonsly.addWidget(self.moveButton)
+        self.startupButton = QtWidgets.QPushButton('startup')
+        self.startupButton.setEnabled(False)
+        self.startupButton.clicked.connect(lambda: self.customStartup())
+        self.startupButton.setToolTip('reset the device, which can solve most problems')
+        buttonsly.addWidget(self.startupButton)
         customLayout.addWidget(buttons)
 
-        self.axis = []
+        self.axesSpinBox = []
         self.singleMoveButton = []
         for i in range(self._info['numaxes']):
             customLayout.addWidget(QtWidgets.QLabel('Axis {}:'.format(str(i))))
@@ -154,7 +161,7 @@ class PZTControllerUI(QtWidgets.QWidget):
             axis = SpinBox(step=1, decimals=15)
             axis.setEnabled(False)
             axis.valueChanged.connect(lambda v, n=i: self.posChanged(v, n))
-            self.axis.append(axis)
+            self.axesSpinBox.append(axis)
             singlely.addWidget(axis)
             button = QtWidgets.QPushButton('move')
             button.setEnabled(False)
@@ -187,11 +194,12 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.deviationInfoLine.setText(str(self._info['deviation']))
         customLayout.addWidget(self.deviationInfoLine)
 
-    def setButtonEnabled(self, set):
-        self.moveButton.setEnabled(set)
-        self.resetButton.setEnabled(set)
+    def setButtonEnabled(self, flag):
+        self.moveButton.setEnabled(flag)
+        self.restoreButton.setEnabled(flag)
         for i in range(self._info['numaxes']):
-            self.singleMoveButton[i].setEnabled(set)
+            self.singleMoveButton[i].setEnabled(flag)
+        self.startupButton.setEnabled(flag)
 
     def posChanged(self, pos, n):
         self._cache[n] = pos
@@ -243,8 +251,8 @@ class PZTControllerUI(QtWidgets.QWidget):
         self._updateThread.restart(QtCore.QThread.LowPriority)
         self.initInfo()
         for i in range(self._info['numaxes']):
-            self.axis[i].setValue(float(self._info['startPosition'][i]))
-            self.axis[i].setEnabled(True)
+            self.axesSpinBox[i].setValue(float(self._info['startPosition'][i]))
+            self.axesSpinBox[i].setEnabled(True)
             self._lastMove[i] = float(self._info['startPosition'][i])
         self.rangeInfoLine.setText(str(self._info['range']))
         self.startPositionInfoLine.setText(str(self._info['startPosition']))
@@ -254,19 +262,33 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.positionInfoLine.setText(str(self._info['position']))
         self.deviationInfoLine.setText(str(self._info['deviation']))
 
-    def customReset(self):
+    def customRestore(self):
         self.setButtonEnabled(False)
         self.initInfo()
         for i in range(self._info['numaxes']):
-            self.axis[i].setValue(float(self._info['startPosition'][i]))
+            self.axesSpinBox[i].setValue(float(self._info['startPosition'][i]))
             self._lastMove[i] = float(self._info['startPosition'][i])
-        self._resetThread.start()
+        self._restoreThread.start()
 
-    def _resetFun(self):
+    def _restoreFun(self):
         try:
-            self.devpool.doSafely(self.type, self.name, 'reset')
+            self.devpool.doSafely(self.type, self.name, 'restore')
         except OutOfRange:
             self._outRangeSignal.emit()
+        except SystemError:
+            self._systemErrorSignal.emit()
+        except Exception as e:
+            self._errorSignal.emit(str(e))
+        finally:
+            self._onTargetSignal.emit()
+    
+    def customStartup(self):
+        self.setButtonEnabled(False)
+        self._startupThread.start()
+
+    def _startupFun(self):
+        try:
+            self.devpool.doSafely(self.type, self.name, 'startup')
         except SystemError:
             self._systemErrorSignal.emit()
         except Exception as e:
@@ -279,8 +301,8 @@ class PZTControllerUI(QtWidgets.QWidget):
             self._updateThread.delSafely()
         if self._moveThread and self._moveThread.isRunning():
             self._moveThread.wait()
-        if self._resetThread and self._resetThread.isRunning():
-            self._resetThread.wait()
+        if self._restoreThread and self._restoreThread.isRunning():
+            self._restoreThread.wait()
         for single_move in self._singleMoveThreads:
             if single_move and single_move.isRunning():
                 single_move.wait()

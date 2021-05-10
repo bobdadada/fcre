@@ -136,6 +136,11 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.initButton.setToolTip('launch interactive interface')
         self.initButton.clicked.connect(lambda: self.customInit())
         buttonsly.addWidget(self.initButton)
+        self.startupButton = QtWidgets.QPushButton('startup')
+        self.startupButton.setEnabled(False)
+        self.startupButton.clicked.connect(lambda: self.customStartup())
+        self.startupButton.setToolTip('reset the device, which can solve most problems')
+        buttonsly.addWidget(self.startupButton)
         self.restoreButton = QtWidgets.QPushButton('restore')
         self.restoreButton.setToolTip('restore to initial position')
         self.restoreButton.setEnabled(False)
@@ -145,11 +150,6 @@ class PZTControllerUI(QtWidgets.QWidget):
         self.moveButton.setEnabled(False)
         self.moveButton.clicked.connect(lambda: self.customMove())
         buttonsly.addWidget(self.moveButton)
-        self.startupButton = QtWidgets.QPushButton('startup')
-        self.startupButton.setEnabled(False)
-        self.startupButton.clicked.connect(lambda: self.customStartup())
-        self.startupButton.setToolTip('reset the device, which can solve most problems')
-        buttonsly.addWidget(self.startupButton)
         customLayout.addWidget(buttons)
 
         self.axesSpinBox = []
@@ -195,11 +195,11 @@ class PZTControllerUI(QtWidgets.QWidget):
         customLayout.addWidget(self.deviationInfoLine)
 
     def setButtonEnabled(self, flag):
+        self.startupButton.setEnabled(flag)
         self.moveButton.setEnabled(flag)
         self.restoreButton.setEnabled(flag)
         for i in range(self._info['numaxes']):
             self.singleMoveButton[i].setEnabled(flag)
-        self.startupButton.setEnabled(flag)
 
     def posChanged(self, pos, n):
         self._cache[n] = pos
@@ -246,9 +246,6 @@ class PZTControllerUI(QtWidgets.QWidget):
                     QtWidgets.QMessageBox.Warning, parent=self)
             self.initButton.setEnabled(True)
             return
-        self.setButtonEnabled(True)
-        self._updateErrorSignalEmittedTimes = 0
-        self._updateThread.restart(QtCore.QThread.LowPriority)
         self.initInfo()
         for i in range(self._info['numaxes']):
             self.axesSpinBox[i].setValue(float(self._info['startPosition'][i]))
@@ -256,6 +253,9 @@ class PZTControllerUI(QtWidgets.QWidget):
             self._lastMove[i] = float(self._info['startPosition'][i])
         self.rangeInfoLine.setText(str(self._info['range']))
         self.startPositionInfoLine.setText(str(self._info['startPosition']))
+        self.setButtonEnabled(True)
+        self._updateErrorSignalEmittedTimes = 0
+        self._updateThread.restart(QtCore.QThread.LowPriority)
 
     def _updateFun(self):
         self.updateInfo()

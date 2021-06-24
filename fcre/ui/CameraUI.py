@@ -66,9 +66,11 @@ class CameraUI(QtWidgets.QWidget):
         buttons = QtWidgets.QWidget()
         buttonly = QtWidgets.QHBoxLayout(buttons)
         self._startButton = QtWidgets.QPushButton('start')
+        self._startButton.setToolTip('启动或停止相机流')
         self._startButton.clicked.connect(self.customStart)
         buttonly.addWidget(self._startButton)
         self._saveButton = QtWidgets.QPushButton('save')
+        self._saveButton.setToolTip('保存此时刻拍摄的图像')
         self._saveButton.clicked.connect(self.customSave)
         buttonly.addWidget(self._saveButton)
 

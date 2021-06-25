@@ -3,7 +3,7 @@ import pyqtgraph as pg
 
 from qtdptools.thread import NonstopDo
 from qtdptools.show_utils import showQuickMessage
-from qtdptools.utils import validateRets
+from qtdptools.utils import validateRet
 
 __all__ = ['ShutterUI']
 
@@ -48,7 +48,8 @@ class ShutterUI(QtWidgets.QWidget):
     def setupUI(self):
         customLayout = QtWidgets.QVBoxLayout(self)
 
-        customLayout.addWidget(QtWidgets.QLabel('type: {}, name: {}'.format(self.type, self.name)))
+        customLayout.addWidget(QtWidgets.QLabel(
+            'type: {}, name: {}'.format(self.type, self.name)))
 
         buttons = QtWidgets.QWidget()
         buttonly = QtWidgets.QHBoxLayout(buttons)
@@ -102,14 +103,17 @@ class ShutterUI(QtWidgets.QWidget):
             mode = int(self.modeComboBox.value())
             self.devpool.doSafely(self.type, self.name, 'setMode', mode)
             opentime = float(self.opentimeSpinbox.value())
-            self.devpool.doSafely(self.type, self.name, 'setOpenDuration', opentime)
+            self.devpool.doSafely(self.type, self.name,
+                                  'setOpenDuration', opentime)
             shuttime = float(self.shuttimeSpinbox.value())
-            self.devpool.doSafely(self.type, self.name, 'setShutDuration', shuttime)
+            self.devpool.doSafely(self.type, self.name,
+                                  'setShutDuration', shuttime)
         except Exception as e:
             self._updateThread = None
             self.devpool.do(self.type, self.name, 'close')
             self.initButton.setEnabled(True)
-            showQuickMessage(5000, 'Error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
+            showQuickMessage(5000, 'Error', str(
+                e), QtWidgets.QMessageBox.Critical, parent=self)
 
     def customEnable(self, x):
         try:
@@ -120,7 +124,8 @@ class ShutterUI(QtWidgets.QWidget):
         except Exception as e:
             self.devpool.do(self.type, self.name, 'close')
             self.initButton.setEnabled(True)
-            showQuickMessage(5000, 'Error', str(e), QtWidgets.QMessageBox.Critical, parent=self)
+            showQuickMessage(5000, 'Error', str(
+                e), QtWidgets.QMessageBox.Critical, parent=self)
 
     def updateInfo(self):
         info = self.devpool.do(self.type, self.name, 'getInfo')
@@ -132,14 +137,19 @@ class ShutterUI(QtWidgets.QWidget):
     def customInit(self):
         self.initButton.setEnabled(False)
         if not self.devpool.do(self.type, self.name, 'isOpen'):
-            showQuickMessage(5000, 'NotOpen', 'device is not open! Please reconnect', QtWidgets.QMessageBox.Warning, parent=self)
+            showQuickMessage(5000, 'NotOpen', 'device is not open! Please reconnect',
+                             QtWidgets.QMessageBox.Warning, parent=self)
             self.initButton.setEnabled(True)
             return
         try:
-            self.modeComboBox.setItems(validateRets(self.devpool.doSafely(self.type, self.name, 'getModeNameTable'), 
-                '无法获取光快门模式表', dict))
-            self.opentimeSpinbox.setValue(self.devpool.doSafely(self.type, self.name, 'getOpenDuration'))
-            self.shuttimeSpinbox.setValue(self.devpool.doSafely(self.type, self.name, 'getShutDuration'))
+            self.modeComboBox.setItems(validateRet(self.devpool.doSafely(self.type, self.name, 'getModeNameTable'),
+                                                   '无法获取光快门模式表', dict))
+            self.modeComboBox.setCurrentIndex(self.modeComboBox.findText(
+                self.devpool.doSafely(self.type, self.name, 'getModeName')))
+            self.opentimeSpinbox.setValue(self.devpool.doSafely(
+                self.type, self.name, 'getOpenDuration'))
+            self.shuttimeSpinbox.setValue(self.devpool.doSafely(
+                self.type, self.name, 'getShutDuration'))
         except:
             self.initButton.setEnabled(True)
             return
@@ -149,7 +159,6 @@ class ShutterUI(QtWidgets.QWidget):
             self._updateThread.start(QtCore.QThread.LowPriority)
         else:
             pass
-        self.customSet()
 
     def _updateFun(self):
         self.updateInfo()
@@ -165,6 +174,7 @@ class ShutterUI(QtWidgets.QWidget):
         if self._updateThread and self._updateThread.isRunning:
             self._updateThread.delSafely()
         ev.accept()
+
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication([])

@@ -41,6 +41,8 @@ class SCShutter(object):
         getOpenDuration-获得打开时间
         setShutDuration-设置关闭时间
         getShutDuration-获得关闭时间
+        setRepeatCount-设置重复次数
+        getRepeatCount-获得重复次数
         close-关闭物理设备
     """
 
@@ -61,7 +63,8 @@ class SCShutter(object):
                      'shuttime': None,
                      'opentime': None,
                      'mode': None,
-                     'modename':None}
+                     'modename':None,
+                     'count':None}
         self._lock = threading.RLock()
 
     def isOpen(self):
@@ -108,6 +111,7 @@ class SCShutter(object):
             self.getOpenDuration()
             self.getShutDuration()
             self.getMode()
+            self.getRepeatCount()
 
     def getModeNameTable(self):
         return dict(self._modeNameTable)
@@ -130,7 +134,8 @@ class SCShutter(object):
             return {'enable': self.isEnable(),
                      'shuttime': self.getShutDuration(),
                      'opentime': self.getOpenDuration(),
-                     'modename':self.getModeName()}
+                     'modename':self.getModeName(),
+                     'count':self.getRepeatCount()}
 
     def getAllInfo(self):
         with self._lock:
@@ -233,6 +238,24 @@ class SCShutter(object):
             ret = self._quiry('shut')
             self._info['shuttime'] = int(ret)
             return self._info['shuttime']
+    
+    def setRepeatCount(self, n):
+        with self._lock:
+            if not self.device:
+                return
+            n = int(n)
+            if n > 99 or n < 1:
+                raise ValueError('number of repeat count must be from 1 to 99')
+            self._info['count'] = n
+            self._write('rep=%d'%n)
+    
+    def getRepeatCount(self):
+        with self._lock:
+            if not self.device:
+                return
+            ret = self._quiry('rep')
+            self._info['count'] = int(ret)
+            return self._info['count']
 
     def close(self):
         with self._lock:

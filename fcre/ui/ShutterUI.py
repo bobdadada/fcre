@@ -78,6 +78,10 @@ class ShutterUI(QtWidgets.QWidget):
         self.shuttimeSpinbox = pg.SpinBox(value=200, bounds=(1, None), step=1)
         customLayout.addWidget(self.shuttimeSpinbox)
 
+        customLayout.addWidget(QtWidgets.QLabel('RepeatCount:'))
+        self.countSpinbox = pg.SpinBox(value=1, bounds=(1, None), step=1)
+        customLayout.addWidget(self.countSpinbox)
+
         customLayout.addWidget(QtWidgets.QLabel('Mode Info:'))
         self.modeInfoLine = QtWidgets.QLineEdit('None')
         self.modeInfoLine.setEnabled(False)
@@ -97,6 +101,11 @@ class ShutterUI(QtWidgets.QWidget):
         self.shuttimeInfoLine = QtWidgets.QLineEdit('None')
         self.shuttimeInfoLine.setEnabled(False)
         customLayout.addWidget(self.shuttimeInfoLine)
+
+        customLayout.addWidget(QtWidgets.QLabel('RepeatCount Info:'))
+        self.countInfoLine = QtWidgets.QLineEdit('None')
+        self.countInfoLine.setEnabled(False)
+        customLayout.addWidget(self.countInfoLine)
 
     def customSet(self):
         try:
@@ -150,6 +159,8 @@ class ShutterUI(QtWidgets.QWidget):
                 self.type, self.name, 'getOpenDuration'))
             self.shuttimeSpinbox.setValue(self.devpool.doSafely(
                 self.type, self.name, 'getShutDuration'))
+            self.countSpinbox.setValue(self.devpool.doSafely(
+                self.type, self.name, 'getRepeatCount'))
         except:
             self.initButton.setEnabled(True)
             return
@@ -166,6 +177,7 @@ class ShutterUI(QtWidgets.QWidget):
         self.opentimeInfoLine.setText(str(self._info['opentime']))
         self.shuttimeInfoLine.setText(str(self._info['shuttime']))
         self.enableInfoLine.setText(str(self._info['enable']))
+        self.countInfoLine.setText(str(self._info['count']))
 
     def customReset(self):
         pass

@@ -3,7 +3,6 @@
 __all__ = ['PIPZTController', 'showPortInfo', 'AMCPZTController']
 
 import os
-import importlib.util
 from abc import abstractmethod, ABCMeta
 from textwrap import dedent
 import time
